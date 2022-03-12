@@ -1,3 +1,3 @@
 module github.com/bluguard/dnshield
 
-go 1.16
+go 1.18
