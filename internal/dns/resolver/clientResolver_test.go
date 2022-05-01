@@ -18,15 +18,24 @@ type MockClient struct {
 }
 
 // ResolveV4 implements client.Client
-func (m MockClient) ResolveV4(name string) (net.IP, error) {
+func (m MockClient) ResolveV4(name string) (dto.Record, error) {
 	m.v4Count++
-	return net.ParseIP("127.0.0.1").To4(), nil
+	if name == "localhost" {
+		return dto.Record{
+			Name:  "localhost",
+			Type:  dto.A,
+			Class: dto.IN,
+			TTL:   200,
+			Data:  net.ParseIP("127.0.0.1").To4(),
+		}, nil
+	}
+	return dto.Record{}, errors.New("unknown")
 }
 
 // ResolveV6 implements client.Client
-func (m MockClient) ResolveV6(name string) (net.IP, error) {
+func (m MockClient) ResolveV6(name string) (dto.Record, error) {
 	m.v6Count++
-	return nil, errors.New("unsuported")
+	return dto.Record{}, errors.New("unsuported")
 }
 
 func TestClientResolver_Resolve(t *testing.T) {
@@ -87,7 +96,7 @@ func TestClientResolver_Resolve(t *testing.T) {
 				t.Errorf("ClientResolver.Resolve() got = %v, want %v", got, tt.want)
 			}
 			if ok != tt.ok {
-				t.Errorf("ClientResolver.Resolve() got1 = %v, want %v", ok, tt.ok)
+				t.Errorf("ClientResolver.Resolve() ok = %v, want %v", ok, tt.ok)
 			}
 		})
 	}

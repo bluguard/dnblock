@@ -3,6 +3,7 @@ package resolver
 import (
 	"errors"
 	"log"
+	"strconv"
 
 	"github.com/bluguard/dnshield/internal/dns/dto"
 )
@@ -10,6 +11,12 @@ import (
 type Resolver interface {
 	Resolve(dto.Question) (dto.Record, bool)
 	Name() string
+}
+
+func NewResolverChain(chain []Resolver) *ResolverChain {
+	return &ResolverChain{
+		chain: chain,
+	}
 }
 
 //Resolver
@@ -20,7 +27,7 @@ type ResolverChain struct {
 func (resolverChain *ResolverChain) Resolve(message dto.Message) dto.Message {
 	records := resolverChain.resolveAll(message.Question)
 	response := dto.Message{
-		ID:            message.ID, //TODO check the method to set the  id of a response
+		ID:            message.ID,
 		Header:        dto.STANDARD_RESPONSE,
 		QuestionCount: message.QuestionCount,
 		ResponseCount: uint16(len(records)),
@@ -47,8 +54,9 @@ func (resolverChain *ResolverChain) resolveAll(questions []dto.Question) []dto.R
 func (resolverChain *ResolverChain) resolveOne(question dto.Question) (dto.Record, error) {
 	for _, resolver := range resolverChain.chain {
 		if record, ok := resolver.Resolve(question); ok {
+			log.Println("question", question.Name, question.Type, " -> ", record.Data, "resolved by", resolver.Name())
 			return record, nil
 		}
 	}
-	return dto.Record{}, errors.New("no record found for " + question.Name)
+	return dto.Record{}, errors.New("no record found for " + question.Name + " with class " + strconv.Itoa(int(question.Type)))
 }

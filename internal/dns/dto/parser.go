@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	bufferMaxLength     = 255
+	BufferMaxLength     = 255
 	bufferMinLength     = 12
 	bufferQuestionStart = 12
 
@@ -21,7 +21,7 @@ var _ error = &BufferTooLongException{0}
 
 //ParseMessage parse a message from a binary representation
 func ParseMessage(packet []byte) (*Message, error) {
-	if len(packet) > bufferMaxLength {
+	if len(packet) > BufferMaxLength {
 		return nil, &BufferTooLongException{len(packet)}
 	}
 	if len(packet) < bufferMinLength {
@@ -230,5 +230,5 @@ type BufferTooLongException struct {
 
 //Error returns the string of the current error
 func (b *BufferTooLongException) Error() string {
-	return "the length of the buffer" + strconv.Itoa(b.len) + "is too long, maximum length is " + strconv.Itoa(bufferMaxLength)
+	return "the length of the buffer" + strconv.Itoa(b.len) + "is too long, maximum length is " + strconv.Itoa(BufferMaxLength)
 }
