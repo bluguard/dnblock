@@ -3,6 +3,7 @@ package doh
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -54,9 +55,14 @@ func (c *DOHClient) resolve(name string, t dto.Type) (dto.Record, error) {
 		return dto.Record{}, errors.New("no answer in response")
 	}
 	if message.Answer[0].Type == 5 {
-		return c.resolve(message.Answer[0].Data, t)
+		record, err := c.resolve(message.Answer[0].Data, t)
+		record.Name = name //Keep the Answer consistent with the initial Question
+		return record, err
+	}
+	if message.Answer[0].Type != uint16(dto.A) && message.Answer[0].Type != uint16(dto.AAAA) {
+		log.Println("receive message of type", message.Answer[0].Type)
+		return dto.Record{}, errors.New("answer with unknown type in response")
 	}
 
-	//log.Println(message)
 	return message.Answer[0].ToRecord(), nil
 }

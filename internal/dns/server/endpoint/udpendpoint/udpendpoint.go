@@ -145,6 +145,7 @@ func (e *UdpEndpoint) handleRequest(buffer []byte, addr *net.UDPAddr) {
 		return
 	}
 	res := e.chain.Resolve(*message)
+	//log.Println("Handling request for ", addr.IP, message, " -> ", res)
 	e.sendChan <- response{
 		message:     res,
 		destination: *addr,
