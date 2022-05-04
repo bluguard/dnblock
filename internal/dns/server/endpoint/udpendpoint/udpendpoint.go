@@ -137,6 +137,7 @@ func (e *UdpEndpoint) sendingLoop(ctx context.Context, udpConn *net.UDPConn, iwg
 
 func (e *UdpEndpoint) handleRequest(buffer []byte, addr *net.UDPAddr) {
 	//log.Println("Handling request for ", addr.IP)
+	start := time.Now()
 	e.lock.RLock()
 	defer e.lock.RUnlock()
 	message, err := dto.ParseMessage(buffer)
@@ -150,4 +151,6 @@ func (e *UdpEndpoint) handleRequest(buffer []byte, addr *net.UDPAddr) {
 		message:     res,
 		destination: *addr,
 	}
+	delay := time.Since(start)
+	log.Println("resolving", message.QuestionCount, "questions took", delay.String())
 }

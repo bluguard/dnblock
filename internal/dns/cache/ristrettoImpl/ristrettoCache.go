@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	v4Suffix = "_v4"
-	v6Suffix = "_v6"
-	megabyte = int64(1) << 20
+	v4Suffix        = "_v4"
+	v6Suffix        = "_v6"
+	megabyteInBytes = 1000000
+	keySize         = 4
 )
 
 var _ cache.Cache = &RistretoCache{}
@@ -27,7 +28,7 @@ type RistretoCache struct {
 
 func NewRistrettoCache(cacheSizeMb int64, baseTtl uint32) *RistretoCache {
 	cache, err := ristretto.NewCache(&ristretto.Config{
-		MaxCost:     cacheSizeMb * megabyte,
+		MaxCost:     cacheSizeMb * megabyteInBytes,
 		NumCounters: 1e7,
 		Metrics:     false,
 		BufferItems: 64,
@@ -100,7 +101,8 @@ func (c *RistretoCache) Feed(record dto.Record) {
 	if c.basettl == 0 {
 		ttl = 0
 	}
-	c.memory.SetWithTTL(key, record.Data, 1, time.Second*time.Duration(ttl))
+	cost := int64(keySize + len(record.Data))
+	c.memory.SetWithTTL(key, record.Data, cost, time.Second*time.Duration(ttl))
 }
 
 func computeKey(s string, t dto.Type) uint32 {

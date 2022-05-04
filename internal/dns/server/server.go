@@ -7,8 +7,9 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
-	ristretoimpl "github.com/bluguard/dnshield/internal/dns/cache/ristrettoImpl"
+	"github.com/bluguard/dnshield/internal/dns/cache/memorycache"
 	"github.com/bluguard/dnshield/internal/dns/client"
 	"github.com/bluguard/dnshield/internal/dns/client/doh"
 	inmemoryclient "github.com/bluguard/dnshield/internal/dns/client/inMemoryClient"
@@ -62,7 +63,13 @@ func (s *Server) Reconfigure(conf configuration.ServerConf) *sync.WaitGroup {
 		s.cancelFunc()
 	}
 
-	cache := ristretoimpl.NewRistrettoCache(conf.Cache.Size, conf.Cache.Basettl)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	s.cancelFunc = cancelFunc
+
+	wg := sync.WaitGroup{}
+
+	wg.Add(1)
+	cache := memorycache.NewMemoryCache(conf.Cache.Size, conf.Cache.Basettl, ctx, &wg, 1*time.Minute)
 
 	s.chain = *resolver.NewResolverChain([]resolver.Resolver{
 		resolver.NewClientresolver(buildBlocker(conf), "Block"),
@@ -72,11 +79,6 @@ func (s *Server) Reconfigure(conf configuration.ServerConf) *sync.WaitGroup {
 	})
 
 	s.endpoints = createEndpoints(conf, &s.chain)
-
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	s.cancelFunc = cancelFunc
-
-	wg := sync.WaitGroup{}
 
 	for _, endpoint := range s.endpoints {
 		wg.Add(1)
