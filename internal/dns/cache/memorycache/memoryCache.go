@@ -15,7 +15,6 @@ import (
 
 // estimate cost of one entry is 50 bytes
 const cost int64 = 50
-
 const defaultTtl = 60
 
 const (
@@ -42,6 +41,7 @@ func NewMemoryCache(size int64, baseTtl uint32, ctx context.Context, wg *sync.Wa
 		baseTtl:         baseTtl,
 	}
 
+	wg.Add(1)
 	if baseTtl > 0 {
 		go gcScheduler(&res, ctx, wg, gcDelay)
 	} else {
@@ -74,7 +74,7 @@ func (c *MemoryCache) ResolveV6(name string) (dto.Record, error) {
 	}
 	return dto.Record{
 		Name:  name,
-		Type:  dto.A,
+		Type:  dto.AAAA,
 		Class: dto.IN,
 		TTL:   defaultTtl,
 		Data:  ip.To16(),
@@ -91,12 +91,14 @@ func (c *MemoryCache) resolve(name string) (net.IP, error) {
 
 // Feed implements cache.Cache
 func (c *MemoryCache) Feed(record dto.Record) {
+	start := time.Now()
 	ttl := record.TTL
 	if record.TTL < c.baseTtl {
-		ttl = c.baseTtl
-		log.Println("use default ttl for", record.Name, record.Type, record.TTL)
+		log.Println("Ignore cache for", record.Name)
+		return
 	}
-	c.put(computeName(record.Name, record.Type), record.Data, time.Duration(ttl))
+	c.put(computeName(record.Name, record.Type), computeData(record.Data, record.Type), time.Duration(ttl)*time.Second)
+	log.Println("Fed the cache in", time.Since(start))
 }
 
 // Clear implements cache.Cache
@@ -114,6 +116,7 @@ func (c *MemoryCache) put(key string, address net.IP, ttl time.Duration) {
 	defer c.lock.Unlock()
 
 	if c.remainingMemory < cost {
+		log.Println("cache is full")
 		c.freeNextDeadline()
 	} else {
 		c.remainingMemory -= cost
@@ -122,6 +125,7 @@ func (c *MemoryCache) put(key string, address net.IP, ttl time.Duration) {
 	hkey := hash(key)
 	c.memory[hkey] = address
 	c.deadlines.insert(deadline{expiry: time.Now().Add(ttl), key: hkey})
+	log.Println("Remaining memory", c.remainingMemory)
 }
 
 func (c *MemoryCache) get(key string) net.IP {
@@ -136,6 +140,8 @@ func (c *MemoryCache) get(key string) net.IP {
 
 func (c *MemoryCache) gc() {
 	c.lock.Lock()
+	start := time.Now()
+	log.Println("trigger gc")
 	defer c.lock.Unlock()
 	count := 0
 	now := time.Now()
@@ -147,7 +153,9 @@ func (c *MemoryCache) gc() {
 			break //the list of deadlines is sorted, no need to range over all elements
 		}
 	}
-	c.deadlines.shiftLeftOf(count)
+	i := count
+	c.deadlines.shiftLeftOf(i)
+	log.Println("GC cleared", count, "entries in", time.Since(start))
 	c.remainingMemory += cost * int64(count)
 }
 
@@ -169,6 +177,17 @@ func computeName(s string, t dto.Type) string {
 		return s + v6Suffix
 	default:
 		return s + v4Suffix
+	}
+}
+
+func computeData(iP net.IP, t dto.Type) net.IP {
+	switch t {
+	case dto.A:
+		return iP.To4()
+	case dto.AAAA:
+		return iP.To16()
+	default:
+		return nil
 	}
 }
 

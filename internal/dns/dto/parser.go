@@ -87,7 +87,7 @@ func parseQuestion(packet []byte, message *Message) (int, error) {
 			return 0, err
 		}
 		if n != 2 {
-			return 0, errors.New("bad read question class")
+			return 0, errors.New("bad read question class, read" + strconv.Itoa(n) + "bytes")
 		}
 		question.Class = Class(binary.BigEndian.Uint16(twoBytes))
 

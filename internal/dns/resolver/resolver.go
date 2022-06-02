@@ -54,7 +54,7 @@ func (resolverChain *ResolverChain) resolveAll(questions []dto.Question) []dto.R
 func (resolverChain *ResolverChain) resolveOne(question dto.Question) (dto.Record, error) {
 	for _, resolver := range resolverChain.chain {
 		if record, ok := resolver.Resolve(question); ok {
-			log.Println("question", question.Name, question.Type, " -> ", record.Data, "resolved by", resolver.Name())
+			log.Println("question", question.Name, question.Type, " -> ", record.Data, record.Type, "resolved by", resolver.Name())
 			return record, nil
 		}
 	}

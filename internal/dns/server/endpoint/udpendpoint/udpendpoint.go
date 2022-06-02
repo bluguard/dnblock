@@ -66,11 +66,15 @@ func (e *UdpEndpoint) run(ctx context.Context, ewg *sync.WaitGroup) {
 		log.Println(err)
 		return
 	}
+	udpConn.SetReadBuffer(dto.BufferMaxLength)
 	defer udpConn.Close()
 	iwg := sync.WaitGroup{}
 
-	iwg.Add(2)
-	go e.receivingLoop(ctx, udpConn, &iwg)
+	for i := 0; i < 10; i++ {
+		iwg.Add(1)
+		go e.receivingLoop(ctx, udpConn, &iwg)
+	}
+	iwg.Add(1)
 	go e.sendingLoop(ctx, udpConn, &iwg)
 
 	iwg.Wait()
@@ -82,6 +86,7 @@ func (e *UdpEndpoint) receivingLoop(ctx context.Context, udpConn *net.UDPConn, w
 	defer wg.Done()
 	defer udpConn.Close()
 	for {
+		start := time.Now()
 		select {
 		case <-ctx.Done():
 			log.Println("udp endpoint on ", e.laddr, " is terminating")
@@ -104,6 +109,7 @@ func (e *UdpEndpoint) receivingLoop(ctx context.Context, udpConn *net.UDPConn, w
 			}
 			data := buffer[0:n]
 			go e.handleRequest(data, addr)
+			log.Println("receiving loop iteration took", time.Since(start))
 		}
 	}
 }
