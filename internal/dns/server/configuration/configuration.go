@@ -38,8 +38,8 @@ func Default() ServerConf {
 			{"cloudflare-dns.com", "2606:4700::6810:f8f"},
 		},
 		Cache: cache{
-			Size:    1,
-			Basettl: 60,
+			Size:    1000000,
+			Basettl: 600,
 		},
 		External: externalSource{
 			Type:     "DOH",

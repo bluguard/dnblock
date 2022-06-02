@@ -29,6 +29,7 @@ type MemoryCache struct {
 	lock            *sync.RWMutex
 	deadlines       *deadlineFolder
 	remainingMemory int64
+	totalCapacity   int64
 	baseTtl         uint32
 }
 
@@ -38,6 +39,7 @@ func NewMemoryCache(size int64, baseTtl uint32, ctx context.Context, wg *sync.Wa
 		lock:            &sync.RWMutex{},
 		deadlines:       &deadlineFolder{memory: make([]deadline, 0, 50)},
 		remainingMemory: size,
+		totalCapacity:   size,
 		baseTtl:         baseTtl,
 	}
 
@@ -91,6 +93,9 @@ func (c *MemoryCache) resolve(name string) (net.IP, error) {
 
 // Feed implements cache.Cache
 func (c *MemoryCache) Feed(record dto.Record) {
+	if c.totalCapacity < cost {
+		return
+	}
 	start := time.Now()
 	ttl := record.TTL
 	if record.TTL < c.baseTtl {
@@ -112,6 +117,7 @@ func (c *MemoryCache) Clear() {
 }
 
 func (c *MemoryCache) put(key string, address net.IP, ttl time.Duration) {
+
 	c.lock.Lock()
 	defer c.lock.Unlock()
 

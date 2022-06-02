@@ -68,7 +68,6 @@ func (s *Server) Reconfigure(conf configuration.ServerConf) *sync.WaitGroup {
 
 	wg := sync.WaitGroup{}
 
-	wg.Add(1)
 	cache := memorycache.NewMemoryCache(conf.Cache.Size, conf.Cache.Basettl, ctx, &wg, 1*time.Minute)
 
 	s.chain = *resolver.NewResolverChain([]resolver.Resolver{

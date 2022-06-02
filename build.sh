@@ -4,10 +4,9 @@ export CGO_ENABLED=0
 export GOOS=linux
 export GOARCH=amd64
 go build -o build/dnshield -ldflags "-w -s" ./cmd/dnshield/main.go
-upx --best --lzma dnshield
+upx --best --lzma build/dnshield
 
 #Build windows
 export GOOS=windows
 export GOARCH=amd64
 go build -o build/dnshield.exe ./cmd/dnshield/main.go
-#upx --best --lzma dnshield.exe
