@@ -1,3 +1,5 @@
+[![Go](https://github.com/bluguard/dnshield/actions/workflows/build.yml/badge.svg)](https://github.com/bluguard/dnshield/actions/workflows/build.yml)
+
 # dnshield
 
 see [rfc1035 dns implementations](https://tools.ietf.org/html/rfc1035) 
