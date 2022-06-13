@@ -11,6 +11,7 @@ import (
 
 	"github.com/bluguard/dnshield/internal/dns/cache/memorycache"
 	"github.com/bluguard/dnshield/internal/dns/client"
+	"github.com/bluguard/dnshield/internal/dns/client/blocker"
 	"github.com/bluguard/dnshield/internal/dns/client/doh"
 	inmemoryclient "github.com/bluguard/dnshield/internal/dns/client/inMemoryClient"
 	"github.com/bluguard/dnshield/internal/dns/client/udp"
@@ -18,6 +19,7 @@ import (
 	"github.com/bluguard/dnshield/internal/dns/server/configuration"
 	"github.com/bluguard/dnshield/internal/dns/server/endpoint"
 	"github.com/bluguard/dnshield/internal/dns/server/endpoint/udpendpoint"
+	blockparser "github.com/bluguard/dnshield/internal/dns/util/blockParser"
 )
 
 type Server struct {
@@ -70,8 +72,10 @@ func (s *Server) Reconfigure(conf configuration.ServerConf) *sync.WaitGroup {
 
 	cache := memorycache.NewMemoryCache(conf.Cache.Size, conf.Cache.Basettl, ctx, &wg, 1*time.Minute)
 
+	blocker, initBlocker := buildBlocker(conf)
+
 	s.chain = *resolver.NewResolverChain([]resolver.Resolver{
-		resolver.NewClientresolver(buildBlocker(conf), "Block"),
+		resolver.NewClientresolver(blocker, "Block"),
 		resolver.NewClientresolver(buildCustom(conf), "Custom"),
 		resolver.NewClientresolver(cache, "Cache"),
 		resolver.NewCacheFeeder(resolver.NewClientresolver(buildExternal(conf), "External"), cache),
@@ -83,6 +87,7 @@ func (s *Server) Reconfigure(conf configuration.ServerConf) *sync.WaitGroup {
 		wg.Add(1)
 		endpoint.Start(ctx, &wg)
 	}
+	initBlocker()
 	return &wg
 }
 
@@ -116,20 +121,16 @@ func buildCustom(conf configuration.ServerConf) client.Client {
 	return &res
 }
 
-func buildBlocker(conf configuration.ServerConf) client.Client {
-	res := inmemoryclient.InMemoryClient{}
-	for _, v := range conf.BlockingList {
-		err := res.Add(v, "127.0.0.1")
-		if err != nil {
-			log.Println("error creating Blocker source ", err)
-		}
-		err = res.Add(v, "::1")
-		if err != nil {
-			log.Println("error creating Blocker source ", err)
-		}
+func buildBlocker(conf configuration.ServerConf) (client.Client, func()) {
+	res := make(blocker.Blocker, 10000)
+	return &res, func() {
+		go func() {
+			for _, url := range conf.BlockingLists {
+				parser := blockparser.BlockParser{Url: url}
+				res.Init(parser.Feed)
+			}
+		}()
 	}
-
-	return &res
 }
 
 //The optimal chain is

@@ -22,7 +22,7 @@ type cache struct {
 
 type ServerConf struct {
 	AllowExternal bool           `json:"allow_external"`
-	BlockingList  []string       `json:"blocking_list"`
+	BlockingLists []string       `json:"blocking_list"`
 	Custom        []custom       `json:"custom"`
 	Cache         cache          `json:"cache"`
 	External      externalSource `json:"external"`
@@ -32,7 +32,9 @@ type ServerConf struct {
 func Default() ServerConf {
 	return ServerConf{
 		AllowExternal: true,
-		BlockingList:  []string{},
+		BlockingLists: []string{
+			"https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+		},
 		Custom: []custom{
 			{"cloudflare-dns.com", "104.16.249.249"},
 			{"cloudflare-dns.com", "2606:4700::6810:f8f"},
