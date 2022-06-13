@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: install dep
-      run: apt update && apt install -y upx
+      run: sudo apt update && sudo apt install -y upx
     - uses: actions/checkout@v3
 
     - name: Set up Go
