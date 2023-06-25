@@ -2,6 +2,7 @@ package blockparser
 
 import (
 	"bufio"
+	"log"
 	"net/http"
 	"strings"
 
@@ -21,9 +22,10 @@ type BlockParser struct {
 var _ blocker.Initializer = (&BlockParser{}).Feed
 
 func (p *BlockParser) Feed(add func(name string)) {
-	resp, err := http.Get(p.Url)
-	if err != nil {
-		panic(err)
+	var resp *http.Response
+	var err error
+	for resp, err = http.Get(p.Url); err != nil; resp, err = http.Get(p.Url) {
+		log.Println(err)
 	}
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {

@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 		resolver.NewClientresolver(&memoryClient, "inMemory"),
 	})
 
-	endpoint := NewUdpEndpoint(addr, chain)
+	endpoint := NewUDPEndpoint(addr, chain)
 
 	endpoint.SetChain(chain)
 

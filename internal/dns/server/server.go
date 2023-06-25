@@ -93,7 +93,7 @@ func (s *Server) Reconfigure(conf configuration.ServerConf) *sync.WaitGroup {
 
 func createEndpoints(conf configuration.ServerConf, chain *resolver.ResolverChain) []endpoint.Endpoint {
 	return []endpoint.Endpoint{
-		udpendpoint.NewUdpEndpoint(conf.Endpoint.Address, chain),
+		udpendpoint.NewUDPEndpoint(conf.Endpoint.Address, chain),
 	}
 }
 

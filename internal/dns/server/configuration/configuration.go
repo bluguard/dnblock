@@ -20,6 +20,7 @@ type cache struct {
 	Basettl uint32 `json:"basettl"`
 }
 
+//ServerConf represents the configuration of the dns server
 type ServerConf struct {
 	AllowExternal bool           `json:"allow_external"`
 	BlockingLists []string       `json:"blocking_list"`
@@ -29,6 +30,7 @@ type ServerConf struct {
 	Endpoint      udpEndpoint    `json:"endpoint"`
 }
 
+//Default generate the default configuration
 func Default() ServerConf {
 	return ServerConf{
 		AllowExternal: true,
