@@ -2,7 +2,7 @@ name: Release
 
 on: 
   release:
-    types: ["created", "edited"]
+    types: ["created"]
 
 jobs:
   build:
@@ -23,7 +23,9 @@ jobs:
     - name: Build
       run: ./build.sh
 
-    - name: Upload a Build Artifact
-      uses: actions/upload-artifact@v3.1.0
-      with: 
-        path: build/*
+    - name: Upload the artifacts
+      uses: skx/github-action-publish-binaries@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        args: 'build/*'
