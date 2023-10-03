@@ -70,7 +70,7 @@ func (s *Server) Reconfigure(conf configuration.ServerConf) *sync.WaitGroup {
 
 	wg := sync.WaitGroup{}
 
-	cache := memorycache.NewMemoryCache(conf.Cache.Size, conf.Cache.Basettl, ctx, &wg, 1*time.Minute)
+	cache := memorycache.NewMemoryCache(ctx, &wg, conf.Cache.Size, conf.Cache.Basettl, conf.Cache.ForceBasettl, 1*time.Minute)
 
 	blocker, initBlocker := buildBlocker(conf)
 

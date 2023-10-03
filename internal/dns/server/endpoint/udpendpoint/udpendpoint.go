@@ -115,17 +115,15 @@ func (e *UDPEndpoint) receivingLoop(ctx context.Context, udpConn *net.UDPConn, w
 
 func (e *UDPEndpoint) receive(udpConn *net.UDPConn) bool {
 	buffer := make([]byte, dto.BufferMaxLength)
-	err := udpConn.SetReadDeadline(time.Now().Add(udpTimeout))
-	if err != nil {
-		log.Println(err)
-		return true
-	}
 	n, addr, err := udpConn.ReadFromUDP(buffer)
 	if err != nil {
 		if terr, ok := err.(net.Error); !(ok && terr.Timeout()) {
 			log.Println(err)
 			return true
 		}
+	}
+	if n == 0 {
+		return false
 	}
 	data := buffer[0:n]
 	go e.handleRequest(data, addr)

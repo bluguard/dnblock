@@ -16,7 +16,7 @@ import (
 func TestMemoryCache(t *testing.T) {
 	ctx, cancelfunc := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
-	memCache := NewMemoryCache(1000, 1, ctx, wg, time.Second*1)
+	memCache := NewMemoryCache(ctx, wg, 1000, 1, time.Second*1)
 
 	feedable := cache.Feedable(memCache)
 

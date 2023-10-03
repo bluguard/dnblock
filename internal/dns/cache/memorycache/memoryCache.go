@@ -15,7 +15,7 @@ import (
 
 // estimate cost of one entry is 50 bytes
 const cost int64 = 50
-const defaultTtl = 60
+const defaultTTL = 60
 
 const (
 	v4Suffix = "_v4"
@@ -24,28 +24,32 @@ const (
 
 var _ cache.Cache = &MemoryCache{}
 
+// MemoryCache an in memory cache implementation
 type MemoryCache struct {
 	memory          map[uint32]net.IP
 	lock            *sync.RWMutex
 	deadlines       *deadlineFolder
 	remainingMemory int64
 	totalCapacity   int64
-	baseTtl         uint32
+	baseTTL         uint32
+	forceBaseTTL    bool
 }
 
-func NewMemoryCache(size int64, baseTtl uint32, ctx context.Context, wg *sync.WaitGroup, gcDelay time.Duration) *MemoryCache {
+// NewMemoryCache instantiate a new cache
+func NewMemoryCache(ctx context.Context, wg *sync.WaitGroup, size int64, baseTTL uint32, forceTTL bool, gcDelay time.Duration) *MemoryCache {
 	res := MemoryCache{
 		memory:          make(map[uint32]net.IP),
 		lock:            &sync.RWMutex{},
 		deadlines:       &deadlineFolder{memory: make([]deadline, 0, 50)},
 		remainingMemory: size,
 		totalCapacity:   size,
-		baseTtl:         baseTtl,
+		baseTTL:         baseTTL,
+		forceBaseTTL:    forceTTL,
 	}
 
 	wg.Add(1)
-	if baseTtl > 0 {
-		go gcScheduler(&res, ctx, wg, gcDelay)
+	if baseTTL > 0 {
+		go gcScheduler(ctx, wg, &res, gcDelay)
 	} else {
 		wg.Done()
 	}
@@ -63,7 +67,7 @@ func (c *MemoryCache) ResolveV4(name string) (dto.Record, error) {
 		Name:  name,
 		Type:  dto.A,
 		Class: dto.IN,
-		TTL:   defaultTtl,
+		TTL:   defaultTTL,
 		Data:  ip.To4(),
 	}, nil
 }
@@ -78,7 +82,7 @@ func (c *MemoryCache) ResolveV6(name string) (dto.Record, error) {
 		Name:  name,
 		Type:  dto.AAAA,
 		Class: dto.IN,
-		TTL:   defaultTtl,
+		TTL:   defaultTTL,
 		Data:  ip.To16(),
 	}, nil
 }
@@ -98,9 +102,12 @@ func (c *MemoryCache) Feed(record dto.Record) {
 	}
 	start := time.Now()
 	ttl := record.TTL
-	if record.TTL < c.baseTtl {
-		log.Println("Ignore cache for", record.Name)
-		return
+	if record.TTL < c.baseTTL {
+		if !c.forceBaseTTL {
+			log.Println("Ignore cache for", record.Name)
+			return
+		}
+		ttl = c.baseTTL // force to the minimum ttl
 	}
 	c.put(computeName(record.Name, record.Type), computeData(record.Data, record.Type), time.Duration(ttl)*time.Second)
 	log.Println("Fed the cache in", time.Since(start))
@@ -152,12 +159,13 @@ func (c *MemoryCache) gc() {
 	count := 0
 	now := time.Now()
 	for _, d := range c.deadlines.memory {
-		if d.expiry.Before(now) {
-			count++
-			delete(c.memory, d.key)
-		} else {
-			break //the list of deadlines is sorted, no need to range over all elements
+		if !d.expiry.Before(now) {
+			// the list of deadlines is sorted, no need to range over all elements
+			break
 		}
+
+		count++
+		delete(c.memory, d.key)
 	}
 	i := count
 	c.deadlines.shiftLeftOf(i)
@@ -172,7 +180,7 @@ func (c *MemoryCache) freeNextDeadline() {
 
 func hash(s string) uint32 {
 	h := fnv.New32a()
-	h.Write([]byte(s))
+	_, _ = h.Write([]byte(s))
 	return h.Sum32()
 }
 func computeName(s string, t dto.Type) string {
@@ -197,7 +205,7 @@ func computeData(iP net.IP, t dto.Type) net.IP {
 	}
 }
 
-func gcScheduler(memoryCache *MemoryCache, ctx context.Context, wg *sync.WaitGroup, gcDelay time.Duration) {
+func gcScheduler(ctx context.Context, wg *sync.WaitGroup, memoryCache *MemoryCache, gcDelay time.Duration) {
 	defer wg.Done()
 	ticker := time.NewTicker(gcDelay)
 	defer ticker.Stop()

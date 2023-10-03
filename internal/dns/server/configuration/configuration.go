@@ -16,11 +16,12 @@ type custom struct {
 }
 
 type cache struct {
-	Size    int64  `json:"size"`
-	Basettl uint32 `json:"basettl"`
+	Size         int64  `json:"size,omitempty"`
+	Basettl      uint32 `json:"basettl,omitempty"`
+	ForceBasettl bool   `json:"force_base_ttl,omitempty"`
 }
 
-//ServerConf represents the configuration of the dns server
+// ServerConf represents the configuration of the dns server
 type ServerConf struct {
 	AllowExternal bool           `json:"allow_external"`
 	BlockingLists []string       `json:"blocking_list"`
@@ -30,7 +31,7 @@ type ServerConf struct {
 	Endpoint      udpEndpoint    `json:"endpoint"`
 }
 
-//Default generate the default configuration
+// Default generate the default configuration
 func Default() ServerConf {
 	return ServerConf{
 		AllowExternal: true,
@@ -42,8 +43,9 @@ func Default() ServerConf {
 			{"cloudflare-dns.com", "2606:4700::6810:f8f"},
 		},
 		Cache: cache{
-			Size:    1000000,
-			Basettl: 600,
+			Size:         1000000,
+			Basettl:      600,
+			ForceBasettl: true,
 		},
 		External: externalSource{
 			Type:     "DOH",
