@@ -8,7 +8,7 @@ import (
 	"github.com/bluguard/dnshield/internal/dns/dto"
 )
 
-func TestUdpClient_ResolveV4(t *testing.T) {
+func TestUDPClient_ResolveV4(t *testing.T) {
 	type fields struct {
 		Address string
 		id      uint16
@@ -38,17 +38,14 @@ func TestUdpClient_ResolveV4(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &UdpClient{
-				Address: tt.fields.Address,
-				id:      tt.fields.id,
-			}
+			c := NewUDPClient(tt.fields.Address)
 			got, err := c.ResolveV4(tt.args.name)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("UdpClient.ResolveV4() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("UDPClient.ResolveV4() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if tt.wantEmpty && !reflect.DeepEqual(got, dto.Record{}) {
-				t.Errorf("UdpClient.ResolveV4() = %v, want empty", got)
+				t.Errorf("UDPClient.ResolveV4() = %v, want empty", got)
 			}
 			if nil == net.ParseIP(got.Data.String()).To4() {
 				t.Errorf("ip is not a V4, got %v", got.Data)
@@ -57,7 +54,7 @@ func TestUdpClient_ResolveV4(t *testing.T) {
 	}
 }
 
-func TestUdpClient_ResolveV6(t *testing.T) {
+func TestUDPClient_ResolveV6(t *testing.T) {
 	type fields struct {
 		Address string
 		id      uint16
@@ -82,17 +79,14 @@ func TestUdpClient_ResolveV6(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &UdpClient{
-				Address: tt.fields.Address,
-				id:      tt.fields.id,
-			}
+			c := NewUDPClient(tt.fields.Address)
 			got, err := c.ResolveV6(tt.args.name)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("UdpClient.ResolveV6() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("UDPClient.ResolveV6() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if tt.wantempty && !reflect.DeepEqual(got, dto.Record{}) {
-				t.Errorf("UdpClient.ResolveV6() = %v, want empty", got)
+				t.Errorf("UDPClient.ResolveV6() = %v, want empty", got)
 			}
 			if nil == net.ParseIP(got.Data.String()).To16() {
 				t.Errorf("ip is not a V6, got %v", got.Data)

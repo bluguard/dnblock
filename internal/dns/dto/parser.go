@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -19,7 +20,7 @@ const (
 
 var _ error = &BufferTooLongException{0}
 
-//ParseMessage parse a message from a binary representation
+// ParseMessage parse a message from a binary representation
 func ParseMessage(packet []byte) (*Message, error) {
 	if len(packet) > BufferMaxLength {
 		return nil, &BufferTooLongException{len(packet)}
@@ -47,10 +48,10 @@ func parseMetadata(packet []byte, message *Message) error {
 	message.QuestionCount = binary.BigEndian.Uint16(packet[4:6])
 	message.ResponseCount = binary.BigEndian.Uint16(packet[6:8])
 	if binary.BigEndian.Uint16(packet[8:10]) != 0 {
-		return errors.New("authority rrs not supported")
+		log.Println(errors.New("authority rrs not supported"))
 	}
 	if binary.BigEndian.Uint16(packet[10:12]) != 0 {
-		return errors.New("additional rrs not supported")
+		log.Println(errors.New("additional rrs not supported"))
 	}
 	return nil
 }
@@ -223,12 +224,12 @@ func parseAddress(data []byte, t Type) (net.IP, error) {
 	return nil, errors.New("bad response type")
 }
 
-//BufferTooLongException error returned when the buffer is too long
+// BufferTooLongException error returned when the buffer is too long
 type BufferTooLongException struct {
 	len int
 }
 
-//Error returns the string of the current error
+// Error returns the string of the current error
 func (b *BufferTooLongException) Error() string {
 	return "the length of the buffer" + strconv.Itoa(b.len) + "is too long, maximum length is " + strconv.Itoa(BufferMaxLength)
 }

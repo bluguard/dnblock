@@ -72,6 +72,18 @@ var parseTest = []testCase{
 			Response:      []dto.Record{{Name: "google.com", Type: dto.AAAA, Class: dto.IN, TTL: 50, Data: (net.ParseIP("2a00:1450:4001:830::200e").To16())}},
 		},
 	},
+	{
+		name: "youtube.com",
+		in:   decodeString("00038180000100010000000007796f757475626503636f6d000001000107796f757475626503636f6d00000100010000003c00048efac90e"),
+		out: dto.Message{
+			ID:            0x0003,
+			Header:        0x8180,
+			QuestionCount: 1,
+			ResponseCount: 1,
+			Question:      []dto.Question{{Name: "youtube.com", Type: dto.A, Class: dto.IN}},
+			Response:      []dto.Record{{Name: "youtube.com", Type: dto.A, Class: dto.IN, TTL: 60, Data: (net.ParseIP("142.250.201.14").To4())}},
+		},
+	},
 }
 
 func TestParseRequest(t *testing.T) {

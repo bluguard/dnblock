@@ -3,9 +3,11 @@ package doh
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/bluguard/dnshield/internal/dns/client"
 	"github.com/bluguard/dnshield/internal/dns/dto"
@@ -14,12 +16,24 @@ import (
 var _ client.Client = &DOHClient{}
 
 type DOHClient struct {
-	endpoint string
+	endpoint   string
+	httpClient *http.Client
 }
 
 func NewDOHClient(endpoint string) *DOHClient {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConns = 100
+	t.MaxConnsPerHost = 100
+	t.MaxIdleConnsPerHost = 100
+
+	httpClient := &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: t,
+	}
+
 	return &DOHClient{
-		endpoint: endpoint,
+		endpoint:   endpoint,
+		httpClient: httpClient,
 	}
 }
 
@@ -39,12 +53,17 @@ func (c *DOHClient) resolve(name string, t dto.Type) (dto.Record, error) {
 		return dto.Record{}, err
 	}
 	req.Header.Add("accept", "application/dns-json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return dto.Record{}, err
 	}
 	var message Message
 	err = json.NewDecoder(resp.Body).Decode(&message)
+
+	// purge and close
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+
 	if err != nil {
 		return dto.Record{}, err
 	}
@@ -56,7 +75,7 @@ func (c *DOHClient) resolve(name string, t dto.Type) (dto.Record, error) {
 	}
 	if message.Answer[0].Type == 5 {
 		record, err := c.resolve(message.Answer[0].Data, t)
-		record.Name = name //Keep the Answer consistent with the initial Question
+		record.Name = name // Keep the Answer consistent with the initial Question
 		return record, err
 	}
 	if message.Answer[0].Type != uint16(dto.A) && message.Answer[0].Type != uint16(dto.AAAA) {

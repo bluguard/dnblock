@@ -105,7 +105,7 @@ func buildExternal(conf configuration.ServerConf) client.Client {
 	case "DOH":
 		return doh.NewDOHClient(conf.External.Endpoint)
 	default:
-		return &udp.UdpClient{Address: conf.External.Endpoint}
+		return udp.NewUDPClient(conf.External.Endpoint)
 	}
 }
 

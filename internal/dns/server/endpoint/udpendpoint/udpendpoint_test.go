@@ -14,11 +14,9 @@ import (
 
 const addr = "127.0.0.1:12349"
 
-var client udp.UdpClient
+var client *udp.UDPClient = udp.NewUDPClient(addr)
 
 func TestMain(m *testing.M) {
-
-	client.Address = addr
 
 	memoryClient := inmemoryclient.InMemoryClient{}
 	memoryClient.Add("localhost", "127.0.0.1")

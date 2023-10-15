@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"runtime/pprof"
+	"runtime/trace"
 
 	"github.com/bluguard/dnshield/internal/dns/server"
 	"github.com/bluguard/dnshield/internal/dns/server/configuration"
@@ -15,6 +16,7 @@ func main() {
 
 	memprofile := flag.String("memprofile", "", "memory profile file")
 	cpuprofile := flag.String("cpuprofile", "", "cpu profile file")
+	traceprofile := flag.String("traceprofile", "", "trace profile file")
 
 	confFile := flag.String("conf", "./conf", "configuration file, will be created if not exists")
 	flag.Parse()
@@ -24,8 +26,23 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		pprof.StartCPUProfile(f)
+		if err := pprof.StartCPUProfile(f); err != nil {
+			panic(err)
+		}
 		defer pprof.StopCPUProfile()
+		defer f.Close()
+	}
+
+	if *traceprofile != "" {
+		f, err := os.Create(*traceprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := trace.Start(f); err != nil {
+			panic(err)
+		}
+		defer trace.Stop()
+		defer f.Close()
 	}
 
 	file, err := os.Open(*confFile)
@@ -37,7 +54,7 @@ func main() {
 	}
 
 	var conf configuration.ServerConf
-	json.NewDecoder(file).Decode(&conf)
+	_ = json.NewDecoder(file).Decode(&conf)
 
 	s := server.Server{}
 
@@ -46,14 +63,17 @@ func main() {
 	if *cpuprofile != "" {
 		pprof.StopCPUProfile()
 	}
+	if *cpuprofile != "" {
+		trace.Stop()
+	}
 
 	if *memprofile != "" {
 		f, err := os.Create(*memprofile)
 		if err != nil {
 			log.Fatal(err)
 		}
-		pprof.WriteHeapProfile(f)
-		f.Close()
+		_ = pprof.WriteHeapProfile(f)
+		_ = f.Close()
 	}
 }
 

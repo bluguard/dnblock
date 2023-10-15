@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bluguard/dnshield/internal/dns/dto"
@@ -15,33 +16,37 @@ import (
 const (
 	udpTimeout = 200 * time.Millisecond
 	workers    = 10
+	maxPending = 1000
 )
 
 var _ endpoint.Endpoint = &UDPEndpoint{}
 
-type response struct {
-	message     dto.Message
+type question struct {
+	message     []byte
 	destination net.UDPAddr
+	arrival     time.Time
 }
 
 // NewUDPEndpoint create a new udp enpoint with the given chain
 func NewUDPEndpoint(address string, chain *resolver.ResolverChain) *UDPEndpoint {
 	return &UDPEndpoint{
-		laddr:    address,
-		chain:    chain,
-		lock:     sync.RWMutex{},
-		started:  false,
-		sendChan: make(chan response),
+		laddr:      address,
+		chain:      chain,
+		lock:       sync.RWMutex{},
+		started:    atomic.Bool{},
+		inbox:      make(chan question, maxPending),
+		bufferPool: sync.Pool{New: func() any { return make([]byte, dto.BufferMaxLength) }},
 	}
 }
 
 // UDPEndpoint endpoint based on udp protocol
 type UDPEndpoint struct {
-	laddr    string
-	chain    *resolver.ResolverChain
-	lock     sync.RWMutex
-	started  bool
-	sendChan chan response
+	laddr      string
+	chain      *resolver.ResolverChain
+	lock       sync.RWMutex
+	started    atomic.Bool
+	inbox      chan question
+	bufferPool sync.Pool
 }
 
 // SetChain implements server.Endpoint
@@ -53,11 +58,10 @@ func (e *UDPEndpoint) SetChain(chain *resolver.ResolverChain) {
 
 // Start implements server.Endpoint
 func (e *UDPEndpoint) Start(ctx context.Context, wg *sync.WaitGroup) {
-	if e.started {
+	if !e.started.CompareAndSwap(false, true) {
 		panic("endpoint is already started")
 	}
 	log.Println("starting udp endpoint on ", e.laddr)
-	e.started = true
 	go e.run(ctx, wg)
 }
 
@@ -73,100 +77,79 @@ func (e *UDPEndpoint) run(ctx context.Context, ewg *sync.WaitGroup) {
 		log.Println(err)
 		return
 	}
-	err = udpConn.SetReadBuffer(dto.BufferMaxLength)
+	err = udpConn.SetReadBuffer(dto.BufferMaxLength * workers * 2)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	err = udpConn.SetWriteBuffer(dto.BufferMaxLength)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	defer udpConn.Close()
-	iwg := sync.WaitGroup{}
+	iwg := &sync.WaitGroup{}
 
+	// start the receiving loop
+	// tart the workers
+	iwg.Add(workers * 2)
 	for i := 0; i < workers; i++ {
-		go e.receivingLoop(ctx, udpConn, &iwg)
+		go e.receivingLoop(ctx, udpConn, iwg)
+		go e.handler(ctx, udpConn, iwg)
 	}
-	iwg.Add(workers)
-	iwg.Add(1)
-	go e.sendingLoop(ctx, udpConn, &iwg)
 
 	iwg.Wait()
 	log.Println("udp endpoint on ", e.laddr, "stopped")
 }
 
 func (e *UDPEndpoint) receivingLoop(ctx context.Context, udpConn *net.UDPConn, wg *sync.WaitGroup) {
-	//Main loop
+	// Main loop
 	defer wg.Done()
 	defer udpConn.Close()
+
 	for {
-		start := time.Now()
 		select {
 		case <-ctx.Done():
 			log.Println("udp endpoint on ", e.laddr, " is terminating")
 			return
 		default:
-			// if timeout loop
-			shouldReturn := e.receive(udpConn)
-			if shouldReturn {
-				return
-			}
-			log.Println("receiving loop iteration took", time.Since(start))
+			e.receive(udpConn)
 		}
 	}
 }
 
-func (e *UDPEndpoint) receive(udpConn *net.UDPConn) bool {
-	buffer := make([]byte, dto.BufferMaxLength)
-	n, addr, err := udpConn.ReadFromUDP(buffer)
+func (e *UDPEndpoint) receive(udpConn *net.UDPConn) {
+	start := time.Now()
+	buff := e.getBuffer()
+	_ = udpConn.SetReadDeadline(time.Now().Add(udpTimeout))
+	n, addr, err := udpConn.ReadFromUDP(buff)
 	if err != nil {
-		if terr, ok := err.(net.Error); !(ok && terr.Timeout()) {
-			log.Println(err)
-			return true
+		if err, ok := err.(net.Error); ok && err.Timeout() {
+			return
 		}
+		panic(err)
 	}
-	if n == 0 {
-		return false
-	}
-	data := buffer[0:n]
-	go e.handleRequest(data, addr)
-	return false
+	e.inbox <- question{message: buff[0:n], destination: *addr, arrival: time.Now()}
+
+	log.Println("receiving loop iteration took", time.Since(start))
 }
 
-func (e *UDPEndpoint) sendingLoop(ctx context.Context, udpConn *net.UDPConn, iwg *sync.WaitGroup) {
-	defer iwg.Done()
-
-	defer udpConn.Close()
+func (e *UDPEndpoint) handler(ctx context.Context, udpConn *net.UDPConn, wg *sync.WaitGroup) {
+	defer wg.Done()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case resp := <-e.sendChan:
-			// if timeout loop
-			shouldReturn := send(resp, udpConn)
-			if shouldReturn {
-				return
-			}
+		case msg := <-e.inbox:
+			e.handleRequest(msg.message, &msg.destination, udpConn)
+			e.recycle(msg.message)
+			log.Println("message handling took", time.Since(msg.arrival).String())
 		}
 	}
 }
 
-func send(resp response, udpConn *net.UDPConn) bool {
-	payload := dto.SerializeMessage(resp.message)
-	err := udpConn.SetWriteDeadline(time.Now().Add(udpTimeout))
-	if err != nil {
-		log.Println(err)
-		return true
-	}
-	_, err = udpConn.WriteToUDP(payload, &resp.destination)
-	if err != nil {
-		if terr, ok := err.(net.Error); !(ok && terr.Timeout()) {
-			log.Println(err)
-			return true
-		}
-	}
-	return false
-}
-
-func (e *UDPEndpoint) handleRequest(buffer []byte, addr *net.UDPAddr) {
-	//log.Println("Handling request for ", addr.IP)
+func (e *UDPEndpoint) handleRequest(buffer []byte, dest *net.UDPAddr, udpConn *net.UDPConn) {
+	// log.Println("Handling request for ", addr.IP)
 	start := time.Now()
 	e.lock.RLock()
 	defer e.lock.RUnlock()
@@ -176,11 +159,27 @@ func (e *UDPEndpoint) handleRequest(buffer []byte, addr *net.UDPAddr) {
 		return
 	}
 	res := e.chain.Resolve(*message)
-	//log.Println("Handling request for ", addr.IP, message, " -> ", res)
-	e.sendChan <- response{
-		message:     res,
-		destination: *addr,
-	}
+	send(res, dest, udpConn)
 	delay := time.Since(start)
 	log.Println("resolving", message.QuestionCount, "questions took", delay.String())
+}
+
+func send(message dto.Message, dest *net.UDPAddr, udpConn *net.UDPConn) bool {
+	payload := dto.SerializeMessage(message)
+	_, err := udpConn.WriteToUDP(payload, dest)
+	if err != nil {
+		if terr, ok := err.(net.Error); !(ok && terr.Timeout()) {
+			log.Println(err)
+			return true
+		}
+	}
+	return false
+}
+
+func (e *UDPEndpoint) getBuffer() []byte {
+	return e.bufferPool.Get().([]byte)
+}
+
+func (e *UDPEndpoint) recycle(buff []byte) {
+	e.bufferPool.Put(buff[0:dto.BufferMaxLength])
 }
