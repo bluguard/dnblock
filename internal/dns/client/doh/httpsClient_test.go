@@ -31,9 +31,7 @@ func TestDOHClient_ResolveV4(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &DOHClient{
-				endpoint: tt.fields.endpoint,
-			}
+			c := NewDOHClient(tt.fields.endpoint)
 			got, err := c.ResolveV4(tt.args.name)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("DOHClient.ResolveV4() error = %v, wantErr %v", err, tt.wantErr)
@@ -70,9 +68,7 @@ func TestDOHClient_ResolveV6(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &DOHClient{
-				endpoint: tt.fields.endpoint,
-			}
+			c := NewDOHClient(tt.fields.endpoint)
 			got, err := c.ResolveV6(tt.args.name)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("DOHClient.ResolveV4() error = %v, wantErr %v", err, tt.wantErr)

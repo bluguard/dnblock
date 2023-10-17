@@ -1,0 +1,13 @@
+# Test for server {{.Target}} on {{.Date}}
+
+- min: {{.Min}}
+- max: {{.Max}}
+- avg: {{.Avg}}
+- normavg: {{.NormAvg}}
+- drops: {{.Drops}}
+
+```mermaid
+pie showData title Request time repartition for {{.Target}} on {{.Date}}
+    {{range .Rep}}"{{.Label}}": {{.Count}}
+    {{end}}
+```
