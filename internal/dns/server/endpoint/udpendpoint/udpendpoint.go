@@ -68,35 +68,18 @@ func (e *UDPEndpoint) Start(ctx context.Context, wg *sync.WaitGroup) {
 
 func (e *UDPEndpoint) run(ctx context.Context, ewg *sync.WaitGroup) {
 	defer ewg.Done()
-	address, err := net.ResolveUDPAddr("udp", e.laddr)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	udpConn, err := net.ListenUDP("udp", address)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	err = udpConn.SetReadBuffer(dto.BufferMaxLength * workers * 2)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	err = udpConn.SetWriteBuffer(dto.BufferMaxLength)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	defer udpConn.Close()
+
 	iwg := &sync.WaitGroup{}
+
+	conns := e.populateConn(ctx, workers)
+	defer closeAll(conns)
 
 	// start the receiving loop
 	// tart the workers
 	iwg.Add(workers * 2)
 	for i := 0; i < workers; i++ {
-		go e.receivingLoop(ctx, udpConn, iwg)
-		go e.handler(ctx, udpConn, iwg)
+		go e.receivingLoop(ctx, conns[i], iwg)
+		go e.handler(ctx, conns[i], iwg)
 	}
 
 	iwg.Wait()
@@ -140,7 +123,6 @@ func (e *UDPEndpoint) handler(ctx context.Context, udpConn *net.UDPConn, wg *syn
 		case msg := <-e.inbox:
 			e.handleRequest(msg.message, &msg.destination, udpConn)
 			e.recycle(msg.message)
-			//log.Println("message handling took", time.Since(msg.arrival).String())
 		}
 	}
 }
@@ -175,4 +157,41 @@ func (e *UDPEndpoint) getBuffer() []byte {
 
 func (e *UDPEndpoint) recycle(buff []byte) {
 	e.bufferPool.Put(buff[0:dto.BufferMaxLength])
+}
+
+func (e *UDPEndpoint) populateConn(ctx context.Context, n int) []*net.UDPConn {
+	res := make([]*net.UDPConn, n)
+
+	for i := 0; i < n; i++ {
+
+		conf := net.ListenConfig{
+			Control: reusePort,
+		}
+
+		conn, err := conf.ListenPacket(ctx, "udp", e.laddr)
+		if err != nil {
+			panic(err)
+		}
+		udpConn, ok := conn.(*net.UDPConn)
+		if !ok {
+			panic("connection is not an udp connection")
+		}
+		err = udpConn.SetReadBuffer(dto.BufferMaxLength * workers * 2)
+		if err != nil {
+			panic(err)
+		}
+		err = udpConn.SetWriteBuffer(dto.BufferMaxLength)
+		if err != nil {
+			panic(err)
+		}
+
+		res[i] = udpConn
+	}
+	return res
+}
+
+func closeAll(r []*net.UDPConn) {
+	for _, c := range r {
+		_ = c.Close()
+	}
 }

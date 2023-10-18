@@ -8,4 +8,5 @@ require (
 	github.com/klauspost/compress v1.17.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.50.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
 )
