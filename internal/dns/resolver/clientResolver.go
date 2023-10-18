@@ -14,6 +14,7 @@ func NewClientresolver(c client.Client, name string) *ClientResolver {
 	}
 }
 
+// ClientResolver is a resolver who delegates to a dns client interface
 type ClientResolver struct {
 	name   string
 	client client.Client
@@ -38,7 +39,6 @@ func (resolver *ClientResolver) Resolve(question dto.Question) (dto.Record, bool
 	}
 	record, err := callClient(question.Name)
 	if err != nil {
-		//log.Println(resolver.name, "error", err)
 		return dto.Record{}, false
 	}
 	return record, true

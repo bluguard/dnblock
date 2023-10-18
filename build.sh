@@ -6,8 +6,10 @@ rm -rf build/
 export GOOS=linux
 export GOARCH=amd64
 echo $GOOS $GOARCH
-go build -o build/dnshield -pgo=./dnshield.cpuprofile -ldflags "-w -s" ./cmd/dnshield/main.go
+go build -o build/dnshield -pgo=dnshield.cpuprofile -ldflags "-w -s" ./cmd/dnshield/main.go
 #go build -o build/dnshield ./cmd/dnshield/main.go
+upx --best --lzma build/dnshield &>/dev/null
+go build -o build/tester -ldflags "-w -s" ./cmd/tester/tester.go
 upx --best --lzma build/dnshield &>/dev/null
 
 #BuildArm 32

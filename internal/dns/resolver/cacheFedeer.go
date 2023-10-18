@@ -7,6 +7,7 @@ import (
 
 var _ Resolver = &Cachefeeder{}
 
+// Cachefeeder is in charge to feed a cache based on the answer of a resolver
 type Cachefeeder struct {
 	delegate Resolver
 	cache    cache.Feedable

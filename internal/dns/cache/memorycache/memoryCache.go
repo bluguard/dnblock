@@ -100,17 +100,14 @@ func (c *MemoryCache) Feed(record dto.Record) {
 	if c.totalCapacity < cost {
 		return
 	}
-	start := time.Now()
 	ttl := record.TTL
 	if record.TTL < c.baseTTL {
 		if !c.forceBaseTTL {
-			log.Println("Ignore cache for", record.Name)
 			return
 		}
 		ttl = c.baseTTL // force to the minimum ttl
 	}
 	c.put(computeName(record.Name, record.Type), computeData(record.Data, record.Type), time.Duration(ttl)*time.Second)
-	log.Println("Fed the cache in", time.Since(start))
 }
 
 // Clear implements cache.Cache
@@ -136,9 +133,11 @@ func (c *MemoryCache) put(key string, address net.IP, ttl time.Duration) {
 	}
 
 	hkey := hash(key)
+	if _, ok := c.memory[hkey]; ok {
+		return
+	}
 	c.memory[hkey] = address
 	c.deadlines.insert(deadline{expiry: time.Now().Add(ttl), key: hkey})
-	log.Println("Remaining memory", c.remainingMemory)
 }
 
 func (c *MemoryCache) get(key string) net.IP {

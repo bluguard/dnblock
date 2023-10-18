@@ -2,6 +2,7 @@ package udpendpoint
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net"
 	"sync"
@@ -61,7 +62,7 @@ func (e *UDPEndpoint) Start(ctx context.Context, wg *sync.WaitGroup) {
 	if !e.started.CompareAndSwap(false, true) {
 		panic("endpoint is already started")
 	}
-	log.Println("starting udp endpoint on ", e.laddr)
+	log.Println("starting udp endpoint on", e.laddr)
 	go e.run(ctx, wg)
 }
 
@@ -99,7 +100,7 @@ func (e *UDPEndpoint) run(ctx context.Context, ewg *sync.WaitGroup) {
 	}
 
 	iwg.Wait()
-	log.Println("udp endpoint on ", e.laddr, "stopped")
+	log.Println("udp endpoint on", e.laddr, "stopped")
 }
 
 func (e *UDPEndpoint) receivingLoop(ctx context.Context, udpConn *net.UDPConn, wg *sync.WaitGroup) {
@@ -110,7 +111,6 @@ func (e *UDPEndpoint) receivingLoop(ctx context.Context, udpConn *net.UDPConn, w
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("udp endpoint on ", e.laddr, " is terminating")
 			return
 		default:
 			e.receive(udpConn)
@@ -119,19 +119,16 @@ func (e *UDPEndpoint) receivingLoop(ctx context.Context, udpConn *net.UDPConn, w
 }
 
 func (e *UDPEndpoint) receive(udpConn *net.UDPConn) {
-	start := time.Now()
 	buff := e.getBuffer()
 	_ = udpConn.SetReadDeadline(time.Now().Add(udpTimeout))
 	n, addr, err := udpConn.ReadFromUDP(buff)
 	if err != nil {
-		if err, ok := err.(net.Error); ok && err.Timeout() {
+		if err, ok := err.(net.Error); ok && (err.Timeout() || errors.Is(err, net.ErrClosed)) {
 			return
 		}
 		panic(err)
 	}
 	e.inbox <- question{message: buff[0:n], destination: *addr, arrival: time.Now()}
-
-	log.Println("receiving loop iteration took", time.Since(start))
 }
 
 func (e *UDPEndpoint) handler(ctx context.Context, udpConn *net.UDPConn, wg *sync.WaitGroup) {
@@ -143,14 +140,12 @@ func (e *UDPEndpoint) handler(ctx context.Context, udpConn *net.UDPConn, wg *syn
 		case msg := <-e.inbox:
 			e.handleRequest(msg.message, &msg.destination, udpConn)
 			e.recycle(msg.message)
-			log.Println("message handling took", time.Since(msg.arrival).String())
+			//log.Println("message handling took", time.Since(msg.arrival).String())
 		}
 	}
 }
 
 func (e *UDPEndpoint) handleRequest(buffer []byte, dest *net.UDPAddr, udpConn *net.UDPConn) {
-	// log.Println("Handling request for ", addr.IP)
-	start := time.Now()
 	e.lock.RLock()
 	defer e.lock.RUnlock()
 	message, err := dto.ParseMessage(buffer)
@@ -160,8 +155,6 @@ func (e *UDPEndpoint) handleRequest(buffer []byte, dest *net.UDPAddr, udpConn *n
 	}
 	res := e.chain.Resolve(*message)
 	send(res, dest, udpConn)
-	delay := time.Since(start)
-	log.Println("resolving", message.QuestionCount, "questions took", delay.String())
 }
 
 func send(message dto.Message, dest *net.UDPAddr, udpConn *net.UDPConn) bool {

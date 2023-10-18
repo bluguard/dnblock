@@ -158,7 +158,10 @@ func printStats(durations []time.Duration, drops int) {
 		return durations[i] < durations[j]
 	})
 	avg := computeMean(durations)
-	normalizedavg := computeMean(durations[1 : len(durations)-1])
+	normalizedavg := avg
+	if len(durations) > 1 {
+		normalizedavg = computeMean(durations[1 : len(durations)-1])
+	}
 	min, max := computeMinMax(durations)
 
 	printReport(computeReportData(durations, min, max, avg, normalizedavg, drops))
@@ -168,6 +171,9 @@ func computeMean(durations []time.Duration) time.Duration {
 	mean := time.Duration(0)
 	for _, d := range durations {
 		mean += d
+	}
+	if len(durations) == 0 {
+		return mean
 	}
 	mean /= time.Duration(len(durations))
 	return mean

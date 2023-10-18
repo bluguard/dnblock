@@ -1,13 +1,13 @@
 package doh
 
 import (
-	"encoding/json"
+	"bytes"
 	"errors"
-	"io"
 	"log"
-	"net/http"
 	"strconv"
-	"time"
+
+	json "github.com/goccy/go-json"
+	"github.com/valyala/fasthttp"
 
 	"github.com/bluguard/dnshield/internal/dns/client"
 	"github.com/bluguard/dnshield/internal/dns/dto"
@@ -15,21 +15,26 @@ import (
 
 var _ client.Client = &DOHClient{}
 
+// DOHClient Dns Pver Http clien, resolve request by requesting it to an http server
 type DOHClient struct {
 	endpoint   string
-	httpClient *http.Client
+	httpClient *fasthttp.Client
 }
 
+// NewDOHClient instantiate a new DOHClient
 func NewDOHClient(endpoint string) *DOHClient {
-	t := http.DefaultTransport.(*http.Transport).Clone()
-	t.MaxIdleConns = 100
-	t.MaxConnsPerHost = 100
-	t.MaxIdleConnsPerHost = 100
+	// t := http.DefaultTransport.(*http.Transport).Clone()
+	// t.MaxIdleConns = 100
+	// t.MaxConnsPerHost = 100
+	// t.MaxIdleConnsPerHost = 100
 
-	httpClient := &http.Client{
-		Timeout:   10 * time.Second,
-		Transport: t,
+	httpClient := &fasthttp.Client{
+		MaxConnsPerHost: 100,
 	}
+	// &http.Client{
+	// 	Timeout:   10 * time.Second,
+	// 	Transport: t,
+	// }
 
 	return &DOHClient{
 		endpoint:   endpoint,
@@ -48,21 +53,19 @@ func (c *DOHClient) ResolveV6(name string) (dto.Record, error) {
 }
 
 func (c *DOHClient) resolve(name string, t dto.Type) (dto.Record, error) {
-	req, err := http.NewRequest("GET", c.endpoint+"?name="+name+"&type="+strconv.Itoa(int(t)), nil)
-	if err != nil {
-		return dto.Record{}, err
-	}
-	req.Header.Add("accept", "application/dns-json")
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return dto.Record{}, err
-	}
-	var message Message
-	err = json.NewDecoder(resp.Body).Decode(&message)
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
 
-	// purge and close
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
+	req.SetRequestURI(c.endpoint + "?name=" + name + "&type=" + strconv.Itoa(int(t)))
+	req.Header.Add("accept", "application/dns-json")
+	req.Header.SetMethod("GET")
+
+	c.httpClient.Do(req, resp)
+
+	var message Message
+	err := json.NewDecoder(bytes.NewReader(resp.Body())).Decode(&message)
 
 	if err != nil {
 		return dto.Record{}, err

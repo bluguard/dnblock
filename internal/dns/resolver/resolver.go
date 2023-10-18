@@ -19,7 +19,7 @@ func NewResolverChain(chain []Resolver) *ResolverChain {
 	}
 }
 
-//Resolver
+// ResolverChain is in charge to ask all subresolver if they know the answer to the every question in the dns message
 type ResolverChain struct {
 	chain []Resolver
 }
@@ -54,7 +54,6 @@ func (resolverChain *ResolverChain) resolveAll(questions []dto.Question) []dto.R
 func (resolverChain *ResolverChain) resolveOne(question dto.Question) (dto.Record, error) {
 	for _, resolver := range resolverChain.chain {
 		if record, ok := resolver.Resolve(question); ok {
-			log.Println("question", question.Name, question.Type, " -> ", record.Data, record.Type, "resolved by", resolver.Name())
 			return record, nil
 		}
 	}
