@@ -29,6 +29,7 @@ type ServerConf struct {
 	Cache         cache          `json:"cache"`
 	External      externalSource `json:"external"`
 	Endpoint      udpEndpoint    `json:"endpoint"`
+	Memdump       string         `json:"memdump,omitempty"`
 }
 
 // Default generate the default configuration

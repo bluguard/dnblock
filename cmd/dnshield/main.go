@@ -58,6 +58,8 @@ func main() {
 
 	s := server.Server{}
 
+	conf.Memdump = *memprofile
+
 	s.Start(conf).Wait()
 
 	if *cpuprofile != "" {
@@ -67,14 +69,6 @@ func main() {
 		trace.Stop()
 	}
 
-	if *memprofile != "" {
-		f, err := os.Create(*memprofile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		_ = pprof.WriteHeapProfile(f)
-		_ = f.Close()
-	}
 }
 
 func createDefault(confFile *string) {

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime/pprof"
 	"sync"
 	"syscall"
 	"time"
@@ -43,6 +44,10 @@ func (s *Server) Start(conf configuration.ServerConf) *sync.WaitGroup {
 
 	go func() {
 		<-ch
+		if conf.Memdump != "" {
+			memDump(conf.Memdump)
+		}
+
 		if s.cancelFunc != nil {
 			s.cancelFunc()
 		}
@@ -135,3 +140,14 @@ func buildBlocker(conf configuration.ServerConf) (client.Client, func()) {
 
 //The optimal chain is
 // Client(Blocker) -> Client(Memory) -> Client(Cache) -> CacheFeeder((Multiple(Client(udp/https))))
+
+func memDump(memprofile string) {
+	if memprofile != "" {
+		f, err := os.Create(memprofile)
+		if err != nil {
+			return
+		}
+		_ = pprof.WriteHeapProfile(f)
+		_ = f.Close()
+	}
+}
